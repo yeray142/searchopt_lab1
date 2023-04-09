@@ -2,43 +2,7 @@ from problem import State, SokobanProblem, ActionType
 from pathlib import Path
 from typing import List, Tuple
 
-
-class PriorityQueue:
-    def __init__(self):
-        self.queue = []
-
-    def push(self, priority, item):
-        """
-        Adds a new item to the queue with a given priority
-        """
-        self.queue.append((priority, item))
-
-    def pop(self):
-        """
-        Removes and returns the item with the least priority
-        """
-        if not self.queue:
-            return None
-        else:
-            least_priority = self.queue[0][0]
-            least_priority_idx = 0
-            for i, (priority, item) in enumerate(self.queue):
-                if priority < least_priority:
-                    least_priority = priority
-                    least_priority_idx = i
-            return self.queue.pop(least_priority_idx)  # Return the item and priority
-
-    def is_empty(self):
-        """
-        Returns True if the queue is empty, False otherwise
-        """
-        return not self.queue
-
-    def size(self):
-        """
-        Returns the number of items in the queue
-        """
-        return len(self.queue)
+from queue import PriorityQueue
 
 
 class MyDict:
@@ -148,7 +112,7 @@ class Assignment1:
         """
         # Initialize a sorted list to store states that need to be expanded.
         frontier = PriorityQueue()
-        frontier.push(0, problem.initial_state)
+        frontier.put((0, problem.initial_state))
 
         # Initialize a MyDict object to keep track of states that have been visited before.
         reached = MyDict()
@@ -157,9 +121,9 @@ class Assignment1:
         reached[problem.initial_state] = 0
 
         # Keep expanding states until the frontier is empty.
-        while not frontier.is_empty():
+        while not frontier.empty():
             # Get the next state from the frontier to expand.
-            cost, state = frontier.pop()
+            cost, state = frontier.get()
 
             # Check if the current state is the goal state.
             if problem.is_goal_state(state):
@@ -183,7 +147,7 @@ class Assignment1:
                 # Add the child state to the reached dictionary.
                 reached[child] = new_cost
 
-                frontier.push(new_cost, child)
+                frontier.put((new_cost, child))
 
         # If no goal state was found, return an empty list.
         return []
