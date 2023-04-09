@@ -1,81 +1,56 @@
 from problem import State, SokobanProblem, ActionType
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Any
+import numpy as np
 
 from queue import PriorityQueue
 
 
-class MyDict:
-    def __init__(self):
-        self.keys = []
-        self.values = []
+def state_to_tuple(state: State) -> tuple[
+    tuple[tuple, ...], tuple[tuple[tuple[int]], Any, Any, float, int] | None, tuple[str] | None, float, int]:
+    """
+    Convert a State object to a tuple where the "map" attribute is a tuple of tuples and "parent" attribute is also a tuple
+    (recursively). Also, the "action" attribute is a tuple with a single element (the enum member name) instead of an enum.
 
-    def __getitem__(self, key):
-        """
-        Return the value associated with the given key if it exists in the keys list,
-        or raise a KeyError if it does not.
-        """
-        try:
-            index = self.keys.index(key)
-            return self.values[index]
-        except ValueError:
-            raise KeyError(key)
+    Args:
+        state: The State object to be converted.
 
-    def __setitem__(self, key, value):
-        """
-        Set the value associated with the given key. If the key already exists in the keys
-        list, its value is updated. If not, the key and value are added to the end of the
-        keys and values lists, respectively.
-        """
-        try:
-            index = self.keys.index(key)
-        except ValueError:
-            index = len(self.keys)
-            self.keys.append(key)
-            self.values.append(value)
-        else:
-            self.values[index] = value
+    Returns:
+        A tuple representing the State object, where the "map" attribute is a tuple of tuples, "parent" attribute is a tuple
+        (recursively), and "action" attribute is a tuple with a single element (the enum member name) or None if the
+        original "action" attribute is None.
+    """
+    # Convert map numpy array to tuple of tuples
+    map_tuple = tuple(tuple(row) for row in state.map)
+    # Convert parent object to tuple (recursively)
+    parent_tuple = state_to_tuple(state.parent) if state.parent else None
+    # Convert action object to tuple with single element (name)
+    action_tuple = (state.action.name,) if state.action else None
+    return map_tuple, parent_tuple, action_tuple, state.reward_so_far, state.depth
 
-    def __delitem__(self, key):
-        """
-        Remove the given key and its associated value from the MyDict object if it exists in
-        the keys list, or raise a KeyError if it does not.
-        """
-        try:
-            index = self.keys.index(key)
-        except ValueError:
-            raise KeyError(key)
-        else:
-            del self.keys[index]
-            del self.values[index]
 
-    def __contains__(self, key):
-        """
-        Return True if the given key exists in the keys list, and False otherwise.
-        """
-        return key in self.keys
+def tuple_to_state(t: tuple[
+    tuple[tuple, ...], tuple[tuple[tuple[int]], Any, Any, float, int] | None, tuple[str] | None, float, int]) -> State:
+    """
+    Convert a tuple representing a State object to the original State object, where the "map" attribute is a numpy array
+    and "parent" attribute is also a State object (recursively). Also, the "action" attribute is an enum member instead
+    of a tuple with a single element (the enum member name).
 
-    def __len__(self):
-        """
-        Return the number of keys in the MyDict object.
-        """
-        return len(self.keys)
+    Args:
+        t: The tuple representing the State object to be converted.
 
-    def __repr__(self):
-        """
-        Return a string representation of the MyDict object in the form of
-        MyDict({key1: value1, key2: value2, ...}).
-        """
-        items = ", ".join([f"{key}: {value}" for key, value in zip(self.keys, self.values)])
-        return f"MyDict({{{items}}})"
-
-    def __str__(self):
-        """
-        Return a string representation of the MyDict object in the form of
-        key1: value1 \n key2: value2 \n ...
-        """
-        items = "\n".join([f"{key}: {value}" for key, value in zip(self.keys, self.values)])
-        return f"{items}"
+    Returns:
+        A State object representing the original tuple, where the "map" attribute is a numpy array, "parent" attribute is
+        also a State object (recursively), and "action" attribute is an enum member or None if the original "action"
+        attribute is None.
+    """
+    # Convert map tuple of tuples to numpy array
+    map_array = np.array(t[0])
+    # Convert parent tuple to State object (recursively)
+    parent_obj = tuple_to_state(t[1]) if t[1] else None
+    # Convert action tuple to enum member
+    action_obj = ActionType[t[2][0]] if t[2] else None
+    return State(map=map_array, parent=parent_obj, action=action_obj, reward_so_far=t[3], depth=t[4])
 
 
 class Assignment1:
@@ -112,18 +87,16 @@ class Assignment1:
         """
         # Initialize a sorted list to store states that need to be expanded.
         frontier = PriorityQueue()
-        frontier.put((0, problem.initial_state))
+        frontier.put((0, state_to_tuple(problem.initial_state)))
 
         # Initialize a MyDict object to keep track of states that have been visited before.
-        reached = MyDict()
-
-        # Add the initial state to the reached dictionary with a value of 0.
-        reached[problem.initial_state] = 0
+        reached = {state_to_tuple(problem.initial_state): 0}
 
         # Keep expanding states until the frontier is empty.
         while not frontier.empty():
             # Get the next state from the frontier to expand.
-            cost, state = frontier.get()
+            cost, tuple_state = frontier.get()
+            state = tuple_to_state(tuple_state)
 
             # Check if the current state is the goal state.
             if problem.is_goal_state(state):
@@ -140,14 +113,15 @@ class Assignment1:
                 new_cost = cost + action_cost
 
                 # Check if the child state has been visited before.
-                if child in reached and new_cost >= reached[child]:
+                tuple_child = state_to_tuple(child)
+                if tuple_child in reached and new_cost >= reached[tuple_child]:
                     # If the child state has been visited before and the new cost is higher, skip it.
                     continue
 
                 # Add the child state to the reached dictionary.
-                reached[child] = new_cost
+                reached[tuple_child] = new_cost
 
-                frontier.put((new_cost, child))
+                frontier.put((new_cost, tuple_child))
 
         # If no goal state was found, return an empty list.
         return []
