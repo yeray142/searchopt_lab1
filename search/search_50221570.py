@@ -6,51 +6,62 @@ import numpy as np
 from queue import PriorityQueue
 
 
-def state_to_tuple(state: State) -> tuple[
-    tuple[tuple, ...], tuple[tuple[tuple[int]], Any, Any, float, int] | None, tuple[str] | None, float, int]:
+class MapTuple:
+    def __init__(self, map_tuple):
+        self.map_tuple = map_tuple
+
+    def __eq__(self, other):
+        if isinstance(other, MapTuple):
+            return self.map_tuple[0] == other.map_tuple[0]
+        return False
+
+    def __lt__(self, other):
+        return self.map_tuple[3] < other.map_tuple[3]
+
+    def __hash__(self):
+        return hash(self.map_tuple[0])
+
+    def __repr__(self):
+        return repr(self.map_tuple)
+
+
+def state_to_tuple(state: State) -> MapTuple:
     """
-    Convert a State object to a tuple where the "map" attribute is a tuple of tuples and "parent" attribute is also a tuple
-    (recursively). Also, the "action" attribute is a tuple with a single element (the enum member name) instead of an enum.
+    Convert a State object to a tuple.
 
     Args:
         state: The State object to be converted.
 
     Returns:
-        A tuple representing the State object, where the "map" attribute is a tuple of tuples, "parent" attribute is a tuple
-        (recursively), and "action" attribute is a tuple with a single element (the enum member name) or None if the
-        original "action" attribute is None.
+        A tuple representing the State object.
     """
     # Convert map numpy array to tuple of tuples
-    map_tuple = tuple(tuple(row) for row in state.map)
-    # Convert parent object to tuple (recursively)
+    map_tuple = tuple(map(tuple, state.map.tolist()))
+    # Convert parent object to a tuple (recursively)
     parent_tuple = state_to_tuple(state.parent) if state.parent else None
-    # Convert action object to tuple with single element (name)
-    action_tuple = (state.action.name,) if state.action else None
-    return map_tuple, parent_tuple, action_tuple, state.reward_so_far, state.depth
+    # Convert action object to enum member
+    action_enum = state.action.name if state.action else None
+    return MapTuple((map_tuple, parent_tuple, action_enum, state.reward_so_far, state.depth))
 
 
-def tuple_to_state(t: tuple[
-    tuple[tuple, ...], tuple[tuple[tuple[int]], Any, Any, float, int] | None, tuple[str] | None, float, int]) -> State:
+def tuple_to_state(t: MapTuple) -> State:
     """
-    Convert a tuple representing a State object to the original State object, where the "map" attribute is a numpy array
-    and "parent" attribute is also a State object (recursively). Also, the "action" attribute is an enum member instead
-    of a tuple with a single element (the enum member name).
+    Convert a tuple representing a State object to the original State object.
 
     Args:
         t: The tuple representing the State object to be converted.
 
     Returns:
-        A State object representing the original tuple, where the "map" attribute is a numpy array, "parent" attribute is
-        also a State object (recursively), and "action" attribute is an enum member or None if the original "action"
-        attribute is None.
+        A State object representing the original tuple.
     """
     # Convert map tuple of tuples to numpy array
-    map_array = np.array(t[0])
+    map_array = np.array(t.map_tuple[0])
     # Convert parent tuple to State object (recursively)
-    parent_obj = tuple_to_state(t[1]) if t[1] else None
+    parent_obj = tuple_to_state(t.map_tuple[1]) if t.map_tuple[1] else None
     # Convert action tuple to enum member
-    action_obj = ActionType[t[2][0]] if t[2] else None
-    return State(map=map_array, parent=parent_obj, action=action_obj, reward_so_far=t[3], depth=t[4])
+    action_enum = ActionType[t.map_tuple[2]] if t.map_tuple[2] else None
+    return State(map=map_array, parent=parent_obj, action=action_enum, reward_so_far=t.map_tuple[3], depth=t.map_tuple[4])
+
 
 
 class Assignment1:
@@ -91,6 +102,9 @@ class Assignment1:
 
         # Initialize a MyDict object to keep track of states that have been visited before.
         reached = {state_to_tuple(problem.initial_state): 0}
+
+        if not tuple_to_state(state_to_tuple(problem.initial_state)).equals(problem.initial_state):
+            return []
 
         # Keep expanding states until the frontier is empty.
         while not frontier.empty():

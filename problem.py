@@ -104,7 +104,7 @@ class SokobanProblem:
         from gym_sokoban.envs import SokobanEnv
         self.__random = np.random.Generator(np.random.PCG64(5606))
 
-        self.__env = SokobanEnv((6, 6), max_steps=30, num_boxes=3)
+        self.__env = SokobanEnv((7, 7), max_steps=30, num_boxes=3)
         self.__env.render = lambda *a, **k: []  # Disable rendering function
         self.__init_state = None
         self.__init_env_steps = 0
