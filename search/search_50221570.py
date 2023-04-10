@@ -1,117 +1,67 @@
 from problem import State, SokobanProblem, ActionType
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Any
+import numpy as np
+
+from queue import PriorityQueue
 
 
-class PriorityQueue:
-    def __init__(self):
-        self.queue = []
+class MapTuple:
+    def __init__(self, map_tuple):
+        self.map_tuple = map_tuple
 
-    def push(self, priority, item):
-        """
-        Adds a new item to the queue with a given priority
-        """
-        self.queue.append((priority, item))
+    def __eq__(self, other):
+        if isinstance(other, MapTuple):
+            return self.map_tuple[0] == other.map_tuple[0]
+        return False
 
-    def pop(self):
-        """
-        Removes and returns the item with the least priority
-        """
-        if not self.queue:
-            return None
-        else:
-            least_priority = self.queue[0][0]
-            least_priority_idx = 0
-            for i, (priority, item) in enumerate(self.queue):
-                if priority < least_priority:
-                    least_priority = priority
-                    least_priority_idx = i
-            return self.queue.pop(least_priority_idx)  # Return the item and priority
+    def __lt__(self, other):
+        return self.map_tuple[3] < other.map_tuple[3]
 
-    def is_empty(self):
-        """
-        Returns True if the queue is empty, False otherwise
-        """
-        return not self.queue
-
-    def size(self):
-        """
-        Returns the number of items in the queue
-        """
-        return len(self.queue)
-
-
-class MyDict:
-    def __init__(self):
-        self.keys = []
-        self.values = []
-
-    def __getitem__(self, key):
-        """
-        Return the value associated with the given key if it exists in the keys list,
-        or raise a KeyError if it does not.
-        """
-        try:
-            index = self.keys.index(key)
-            return self.values[index]
-        except ValueError:
-            raise KeyError(key)
-
-    def __setitem__(self, key, value):
-        """
-        Set the value associated with the given key. If the key already exists in the keys
-        list, its value is updated. If not, the key and value are added to the end of the
-        keys and values lists, respectively.
-        """
-        try:
-            index = self.keys.index(key)
-        except ValueError:
-            index = len(self.keys)
-            self.keys.append(key)
-            self.values.append(value)
-        else:
-            self.values[index] = value
-
-    def __delitem__(self, key):
-        """
-        Remove the given key and its associated value from the MyDict object if it exists in
-        the keys list, or raise a KeyError if it does not.
-        """
-        try:
-            index = self.keys.index(key)
-        except ValueError:
-            raise KeyError(key)
-        else:
-            del self.keys[index]
-            del self.values[index]
-
-    def __contains__(self, key):
-        """
-        Return True if the given key exists in the keys list, and False otherwise.
-        """
-        return key in self.keys
-
-    def __len__(self):
-        """
-        Return the number of keys in the MyDict object.
-        """
-        return len(self.keys)
+    def __hash__(self):
+        return hash(self.map_tuple[0])
 
     def __repr__(self):
-        """
-        Return a string representation of the MyDict object in the form of
-        MyDict({key1: value1, key2: value2, ...}).
-        """
-        items = ", ".join([f"{key}: {value}" for key, value in zip(self.keys, self.values)])
-        return f"MyDict({{{items}}})"
+        return repr(self.map_tuple)
 
-    def __str__(self):
-        """
-        Return a string representation of the MyDict object in the form of
-        key1: value1 \n key2: value2 \n ...
-        """
-        items = "\n".join([f"{key}: {value}" for key, value in zip(self.keys, self.values)])
-        return f"{items}"
+
+def state_to_tuple(state: State) -> MapTuple:
+    """
+    Convert a State object to a tuple.
+
+    Args:
+        state: The State object to be converted.
+
+    Returns:
+        A tuple representing the State object.
+    """
+    # Convert map numpy array to tuple of tuples
+    map_tuple = tuple(map(tuple, state.map.tolist()))
+    # Convert parent object to a tuple (recursively)
+    parent_tuple = state_to_tuple(state.parent) if state.parent else None
+    # Convert action object to enum member
+    action_enum = state.action.name if state.action else None
+    return MapTuple((map_tuple, parent_tuple, action_enum, state.reward_so_far, state.depth))
+
+
+def tuple_to_state(t: MapTuple) -> State:
+    """
+    Convert a tuple representing a State object to the original State object.
+
+    Args:
+        t: The tuple representing the State object to be converted.
+
+    Returns:
+        A State object representing the original tuple.
+    """
+    # Convert map tuple of tuples to numpy array
+    map_array = np.array(t.map_tuple[0])
+    # Convert parent tuple to State object (recursively)
+    parent_obj = tuple_to_state(t.map_tuple[1]) if t.map_tuple[1] else None
+    # Convert action tuple to enum member
+    action_enum = ActionType[t.map_tuple[2]] if t.map_tuple[2] else None
+    return State(map=map_array, parent=parent_obj, action=action_enum, reward_so_far=t.map_tuple[3], depth=t.map_tuple[4])
+
 
 
 class Assignment1:
@@ -148,18 +98,19 @@ class Assignment1:
         """
         # Initialize a sorted list to store states that need to be expanded.
         frontier = PriorityQueue()
-        frontier.push(0, problem.initial_state)
+        frontier.put((0, state_to_tuple(problem.initial_state)))
 
         # Initialize a MyDict object to keep track of states that have been visited before.
-        reached = MyDict()
+        reached = {state_to_tuple(problem.initial_state): 0}
 
-        # Add the initial state to the reached dictionary with a value of 0.
-        reached[problem.initial_state] = 0
+        if not tuple_to_state(state_to_tuple(problem.initial_state)).equals(problem.initial_state):
+            return []
 
         # Keep expanding states until the frontier is empty.
-        while not frontier.is_empty():
+        while not frontier.empty():
             # Get the next state from the frontier to expand.
-            cost, state = frontier.pop()
+            cost, tuple_state = frontier.get()
+            state = tuple_to_state(tuple_state)
 
             # Check if the current state is the goal state.
             if problem.is_goal_state(state):
@@ -176,14 +127,15 @@ class Assignment1:
                 new_cost = cost + action_cost
 
                 # Check if the child state has been visited before.
-                if child in reached and new_cost >= reached[child]:
+                tuple_child = state_to_tuple(child)
+                if tuple_child in reached and new_cost >= reached[tuple_child]:
                     # If the child state has been visited before and the new cost is higher, skip it.
                     continue
 
                 # Add the child state to the reached dictionary.
-                reached[child] = new_cost
+                reached[tuple_child] = new_cost
 
-                frontier.push(new_cost, child)
+                frontier.put((new_cost, tuple_child))
 
         # If no goal state was found, return an empty list.
         return []
